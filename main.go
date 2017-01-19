@@ -28,7 +28,8 @@ func NewMap(size int) *Map {
 	return &m
 }
 
-func (m *Map) set(position int, key, value interface{}) (bool, error) {
+func (m *Map) Set(key, value interface{}) (bool, error) {
+	position := m.Hash(key)
 	rp := &record{key: key, value: value}
 	addr := (*unsafe.Pointer)(&m.arr[position])
 	oldPtr := unsafe.Pointer(m.arr[position])
@@ -37,7 +38,8 @@ func (m *Map) set(position int, key, value interface{}) (bool, error) {
 	return result, nil
 }
 
-func (m *Map) get(position int, key interface{}) interface{} {
+func (m *Map) Get(key interface{}) interface{} {
+	position := m.Hash(key)
 	res := m.arr[position]
 	if res == nil {
 		return nil
@@ -46,34 +48,29 @@ func (m *Map) get(position int, key interface{}) interface{} {
 	return ff.value
 }
 
-func main() {
-	m := NewMap(mapSize)
+func (m *Map) Hash(value interface{}) int {
+	pos := int(crc32.ChecksumIEEE(GetBytes(value).Bytes())) % len(m.arr)
+	return pos
+}
 
-	for i := 0; i < mapSize/2; i++ {
-		bts, _ := GetBytes(i)
-		position := Hash(bts)
-		res, _ := m.set(int(position), i, "test")
-		fmt.Println("set:", res, m.arr[position], position)
+func main() {
+	m := NewMap(mapSize * 2)
+
+	for i := 0; i < mapSize; i++ {
+		m.Set(i, "test")
 	}
 
 	for i := 0; i < mapSize; i++ {
-		res := m.get(i, i)
+		res := m.Get(i)
 		if res != nil {
 			fmt.Println("get:", res.(string), i)
 		}
 	}
 }
 
-func GetBytes(key interface{}) ([]byte, error) {
+func GetBytes(key interface{}) *bytes.Buffer {
 	var buf bytes.Buffer
 	enc := gob.NewEncoder(&buf)
-	err := enc.Encode(key)
-	if err != nil {
-		return nil, err
-	}
-	return buf.Bytes(), nil
-}
-
-func Hash(data []byte) uint32 {
-	return crc32.ChecksumIEEE(data) % mapSize
+	enc.Encode(key)
+	return &buf
 }
