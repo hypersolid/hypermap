@@ -1,76 +1,66 @@
 package main
 
 import (
-	"bytes"
-	"encoding/gob"
-	"fmt"
-	"hash/crc32"
+	"math/rand"
 	"sync/atomic"
 	"unsafe"
 )
 
-const (
-	mapSize = 10
-)
+//go:linkname memhash runtime.memhash
+func memhash(p unsafe.Pointer, seed, s uintptr) uintptr
 
+// Map is awesome lockfree hashtable
 type Map struct {
-	arr []unsafe.Pointer
+	arr  []unsafe.Pointer
+	seed uintptr
 }
 
-type record struct {
+type entry struct {
 	key, value interface{}
 	deleted    bool
 }
 
+// NewMap is a constructor for the Map
 func NewMap(size int) *Map {
-	m := Map{}
+	m := Map{seed: uintptr(rand.Int63())}
 	m.arr = make([]unsafe.Pointer, size)
 	return &m
 }
 
-func (m *Map) Set(key, value interface{}) (bool, error) {
-	position := m.Hash(key)
-	rp := &record{key: key, value: value}
-	addr := (*unsafe.Pointer)(&m.arr[position])
-	oldPtr := unsafe.Pointer(m.arr[position])
-	newPtr := unsafe.Pointer(rp)
-	result := atomic.CompareAndSwapPointer(addr, oldPtr, newPtr)
-	return result, nil
+// Set creates or replaces entry in the Map
+func (m *Map) Set(key, value interface{}) bool {
+	position := m.hashy(key)
+	rp := &entry{key: key, value: value}
+	result := atomic.CompareAndSwapPointer(
+		&m.arr[position],
+		unsafe.Pointer(m.arr[position]),
+		unsafe.Pointer(rp),
+	)
+	return result
 }
 
+// Get reads entry from the Map, in case entry does not exist returns nil
 func (m *Map) Get(key interface{}) interface{} {
-	position := m.Hash(key)
-	res := m.arr[position]
-	if res == nil {
+	position := m.hashy(key)
+	entryPointer := m.arr[position]
+	if entryPointer == nil {
 		return nil
 	}
-	ff := (*record)(res)
-	return ff.value
+	entryStruct := (*entry)(entryPointer)
+	return entryStruct.value
 }
 
-func (m *Map) Hash(value interface{}) int {
-	pos := int(crc32.ChecksumIEEE(GetBytes(value).Bytes())) % len(m.arr)
-	return pos
-}
-
-func main() {
-	m := NewMap(mapSize * 2)
-
-	for i := 0; i < mapSize; i++ {
-		m.Set(i, "test")
+func (m *Map) hashy(value interface{}) uint64 {
+	modulo := uint64(len(m.arr))
+	switch value.(type) {
+	case int:
+		vv := value.(int)
+		return uint64(memhash(unsafe.Pointer(&vv), m.seed, 2)) % modulo
+	case string:
+		vv := value.(string)
+		return uint64(memhash(unsafe.Pointer(&vv), m.seed, 2)) % modulo
+	default:
+		panic("unknown")
 	}
-
-	for i := 0; i < mapSize; i++ {
-		res := m.Get(i)
-		if res != nil {
-			fmt.Println("get:", res.(string), i)
-		}
-	}
-}
-
-func GetBytes(key interface{}) *bytes.Buffer {
-	var buf bytes.Buffer
-	enc := gob.NewEncoder(&buf)
-	enc.Encode(key)
-	return &buf
+	return 0
 }
