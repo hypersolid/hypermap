@@ -1,7 +1,9 @@
 package main
 
 import (
+	"fmt"
 	"math/rand"
+	"runtime"
 	"sync"
 	"testing"
 )
@@ -31,12 +33,34 @@ func Test_Hash_returns_different_values(t *testing.T) {
 }
 
 func Test_Set_does_something(t *testing.T) {
-	m := NewMap(defaultMapSize)
+	m := NewMap(defaultMapSize ^ 2)
 	v := rand.Int()
 	swapped := m.Set(1, v)
 	if !swapped {
 		t.Error("not swapped")
 	}
+}
+
+func Test_Set_parallel(t *testing.T) {
+	runtime.GOMAXPROCS(4)
+	m := NewMap(defaultMapSize)
+	var wg sync.WaitGroup
+	for i := 0; i < 4; i++ {
+		wg.Add(1)
+		go func() {
+			for k := 0; k < 10000; k++ {
+				v := rand.Intn(defaultMapSize)
+				swapped := m.Set(v, v)
+				if !swapped {
+					t.Error("not swapped retries:", m.retries, "collisions", m.collisions)
+				}
+			}
+			wg.Done()
+		}()
+	}
+	wg.Wait()
+	fmt.Println(m.retries)
+	fmt.Println(m.collisions)
 }
 
 func Test_Get_does_something(t *testing.T) {
@@ -82,9 +106,8 @@ func Benchmark_hypermap_read(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		result := m.Get(i)
 		if result == nil || result.(int) != i {
-			b.Error(i, result, m.filled, m.arr, "busted")
+			b.Error(i, result, m.load, m.collisions, m.retries, "busted")
 		}
-
 	}
 }
 

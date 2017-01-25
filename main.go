@@ -11,9 +11,15 @@ func memhash(p unsafe.Pointer, seed, s uintptr) uintptr
 
 // Map is awesome lockfree hashtable
 type Map struct {
-	arr    []unsafe.Pointer
-	seed   uintptr
-	filled int
+	arr        []unsafe.Pointer
+	seed       uintptr
+	load       uint64
+	writes     uint64
+	hits       uint64
+	misses     uint64
+	reads      uint64
+	collisions uint64
+	retries    uint64
 }
 
 type entry struct {
@@ -28,13 +34,20 @@ func NewMap(size int) *Map {
 	return &m
 }
 
+func (m *Map) wrap(position uint64) int {
+	return int(position % uint64(len(m.arr)))
+}
+
 func (m *Map) entityAt(position int) *entry {
-	circularPosition := position % len(m.arr)
-	entryPointer := m.arr[circularPosition]
+	entryPointer := m.arr[position]
 	if entryPointer == nil {
 		return nil
 	}
 	return (*entry)(entryPointer)
+}
+
+func (m *Map) probe(position uint64, step int) uint64 {
+	return position + uint64(step)
 }
 
 func (m *Map) cas(position int, rp *entry) bool {
@@ -46,27 +59,41 @@ func (m *Map) cas(position int, rp *entry) bool {
 	)
 }
 
-// Set creates or replaces entry in the Map
 func (m *Map) Set(key, value interface{}) bool {
-	position := int(m.hashy(key) % uint64(len(m.arr)))
+	r := 0
+	h := m.hashy(key)
+	for !m.set(key, value, h) {
+		atomic.AddUint64(&(m.retries), 1)
+		r++
+		if r > 10 {
+			return false
+		}
+	}
+	return true
+}
+
+// Set creates or replaces entry in the Map
+func (m *Map) set(key, value interface{}, position uint64) bool {
+	rp := &entry{key: key, value: value}
 	for i := 0; i < len(m.arr); i++ {
-		entity := m.entityAt(position + i)
+		pos := m.wrap(m.probe(position, i))
+		entity := m.entityAt(pos)
 		if entity != nil && entity.key != key {
+			atomic.AddUint64(&m.collisions, 1)
 			continue
 		}
-		m.filled++
-		rp := &entry{key: key, value: value}
-		return m.cas(position+i, rp)
+		atomic.AddUint64(&m.load, 1)
+		return m.cas(pos, rp)
 	}
-
 	return false
 }
 
 // Get reads entry from the Map, in case entry does not exist returns nil
 func (m *Map) Get(key interface{}) interface{} {
-	position := int(m.hashy(key) % uint64(len(m.arr)))
+	position := m.hashy(key)
 	for i := 0; i < len(m.arr); i++ {
-		entity := m.entityAt(position + i)
+		pos := m.wrap(m.probe(position, i))
+		entity := m.entityAt(pos)
 		if entity != nil && entity.key == key {
 			return entity.value
 		}
@@ -77,12 +104,12 @@ func (m *Map) Get(key interface{}) interface{} {
 func (m *Map) hashy(value interface{}) uint64 {
 	switch value.(type) {
 	case int:
-		vv := value.(int)
-		return uint64(memhash(unsafe.Pointer(&vv), m.seed, 4))
+		realValue := value.(int)
+		return uint64(memhash(unsafe.Pointer(&realValue), m.seed, 4))
 	case string:
-		vv := value.(string)
-		return uint64(memhash(unsafe.Pointer(&vv), m.seed, 4))
+		realValue := value.(string)
+		return uint64(memhash(unsafe.Pointer(&realValue), m.seed, 4))
 	default:
-		panic("unknown")
+		panic("unknown type")
 	}
 }
