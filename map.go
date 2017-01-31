@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"math/rand"
 	"time"
 	"unsafe"
@@ -13,16 +14,18 @@ const (
 	maxLoad             = 0.9
 )
 
-var nullPtr unsafe.Pointer = unsafe.Pointer(uintptr(0))
+var nullPtr unsafe.Pointer
 
 // Map is awesome lockfree hashtable
 type Map struct {
 	array []unsafe.Pointer
 	seed  uintptr
 
-	Retries    uint64
-	Collisions uint64
-	Load       uint64
+	Retries     uint64
+	Collisions  uint64
+	Load        uint64
+	Allocations uint64
+	MaxChain    uint64
 
 	pool []element
 	head unsafe.Pointer
@@ -31,6 +34,19 @@ type Map struct {
 	isize int
 }
 
+func (m *Map) String() string {
+	return fmt.Sprintf(
+		"Retries:%d Collisions:%d Chain:%d Load:%.2f Allocations:%d | %d",
+		m.Retries,
+		m.Collisions,
+		m.MaxChain,
+		float64(m.Load)/float64(m.usize),
+		m.Allocations,
+		m.usize,
+	)
+}
+
+// element is internal entity that is used in the map
 type element struct {
 	key, value interface{}
 	next       unsafe.Pointer
@@ -45,12 +61,10 @@ func NewMap(size int) *Map {
 		usize: uint64(size),
 		isize: size,
 	}
-
-	m.pool = make([]element, size*maxElementsInBucket)
+	m.pool = make([]element, size*poolCoefficient)
 	m.head = unsafe.Pointer(&m.pool[0])
-	for i := 1; i < size*maxElementsInBucket; i++ {
+	for i := 1; i < size*poolCoefficient; i++ {
 		m.pool[i-1].next = unsafe.Pointer(&m.pool[i])
 	}
-
 	return m
 }

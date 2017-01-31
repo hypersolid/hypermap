@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"math/rand"
 	"runtime"
 	"sync"
@@ -37,6 +38,26 @@ func Test_Set_does_something(t *testing.T) {
 	swapped := m.Set(1, v)
 	if !swapped {
 		t.Error("not swapped")
+	}
+}
+
+func Test_newElement_does_something(t *testing.T) {
+	m := NewMap(defaultMapSize)
+	for i := 0; i < defaultMapSize; i++ {
+		m.Set(i, rand.Int())
+	}
+	if m.Allocations != 0 {
+		t.Errorf("allocations should be %d! actually:%d", 0, m.Allocations)
+	}
+}
+
+func Test_newElement_really_allocates(t *testing.T) {
+	m := NewMap(defaultMapSize)
+	for i := 0; i < defaultMapSize*2; i++ {
+		m.Set(i, rand.Int())
+	}
+	if m.Allocations != defaultMapSize {
+		t.Errorf("allocations should be %d! actually:%d", defaultMapSize, m.Allocations)
 	}
 }
 
@@ -77,19 +98,20 @@ func Benchmark_hypermap_write(b *testing.B) {
 	m := NewMap(b.N * 2)
 	b.StartTimer()
 	for i := 0; i < b.N; i++ {
-		m.Set(i, "test")
+		m.Set(rand.Int(), rand.Int())
 	}
+	fmt.Println(m)
 }
 
-func xBenchmark_map_write(b *testing.B) {
+func Benchmark_map_write(b *testing.B) {
 	b.StopTimer()
-	m := make(map[int]string, b.N*2)
-	mtx := new(sync.RWMutex)
+	m := make(map[int]int, b.N*2)
+	// mtx := new(sync.RWMutex)
 	b.StartTimer()
 	for i := 0; i < b.N; i++ {
-		mtx.Lock()
-		m[i] = "test"
-		mtx.Unlock()
+		// mtx.Lock()
+		m[rand.Int()] = rand.Int()
+		// mtx.Unlock()
 	}
 }
 

@@ -1,45 +1,50 @@
 package main
 
-import "unsafe"
+import (
+	"runtime"
+	"sync/atomic"
+	"unsafe"
+)
 
 // Set adds or replaces entry in the map
 func (m *Map) Set(key, value interface{}) bool {
-	retries := 0
 	bucket := m.hashy(key) % m.usize
-	for !m.set(key, value, bucket) {
-		// atomic.AddUint64(&m.Retries, 1)
-		retries++
-		if retries > maxRetries {
-			return false
-		}
+	el := m.elementFromPool()
+	el.key = key
+	el.value = value
+	for !m.set(key, value, bucket, el) {
+		atomic.AddUint64(&m.Retries, 1)
+		runtime.Gosched()
 	}
-	// atomic.AddUint64(&m.Load, 1)
 	return true
 }
 
-func (m *Map) set(key, value interface{}, bucket uint64) bool {
-	prev := &m.array[bucket]
-	next := m.array[bucket]
+func (m *Map) set(key, value interface{}, bucket uint64, el *element) bool {
 	var entity *element
+	parentPtrLocation := &m.array[bucket]
+	currentElement := m.array[bucket]
 
-	for uintptr(next) != uintptr(0) {
-		entity = (*element)(next)
-		if entity != nil && entity.key == key {
-			newElement := m.pop()
-			newElement.key = key
-			newElement.value = value
-			newElement.next = entity.next
-			return m.cas(prev, unsafe.Pointer(newElement))
+	var steps uint64
+	for currentElement != nullPtr {
+		steps++
+		entity = (*element)(currentElement)
+		if entity.key == key {
+			el.next = entity.next
+			return m.cas(parentPtrLocation, unsafe.Pointer(el))
 		}
-		prev = &entity.next
-		next = entity.next
+		parentPtrLocation = &entity.next
+		currentElement = entity.next
 	}
-
-	newElement := m.pop()
-	newElement.key = key
-	newElement.value = value
-	newElement.next = m.array[bucket]
-	return m.cas(&m.array[bucket], unsafe.Pointer(newElement))
+	if steps > 0 {
+		atomic.AddUint64(&m.Collisions, 1)
+		if steps > m.MaxChain {
+			m.MaxChain = steps
+		}
+	} else {
+		atomic.AddUint64(&m.Load, 1)
+	}
+	el.next = m.array[bucket]
+	return m.cas(&m.array[bucket], unsafe.Pointer(el))
 }
 
 // Get reads element from the Map, in case element does not exist returns nil
