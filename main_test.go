@@ -1,17 +1,19 @@
 package main
 
 import (
-	"fmt"
 	"math/rand"
 	"runtime"
 	"sync"
 	"testing"
 )
 
-const defaultMapSize = 1024
+const (
+	testMapSize   = 1024
+	benchSizeCoef = 2
+)
 
 func Test_Hash_of_string(t *testing.T) {
-	m := NewMap(defaultMapSize ^ 2)
+	m := NewMap(testMapSize ^ 2)
 	if m.hashy("123") != m.hashy("123") {
 		t.Error("'123' is not equal to '123'")
 	}
@@ -23,7 +25,7 @@ func Test_Hash_of_string(t *testing.T) {
 func Test_Hash_returns_different_values(t *testing.T) {
 	v1 := rand.Int()
 	v2 := rand.Int()
-	m := NewMap(defaultMapSize ^ 2)
+	m := NewMap(testMapSize ^ 2)
 	if m.hashy(v1) != m.hashy(v1) {
 		t.Error(v1, v1, "ne equal")
 	}
@@ -33,7 +35,7 @@ func Test_Hash_returns_different_values(t *testing.T) {
 }
 
 func Test_Set_does_something(t *testing.T) {
-	m := NewMap(defaultMapSize ^ 2)
+	m := NewMap(testMapSize ^ 2)
 	v := rand.Int()
 	swapped := m.Set(1, v)
 	if !swapped {
@@ -42,8 +44,8 @@ func Test_Set_does_something(t *testing.T) {
 }
 
 func Test_newElement_does_something(t *testing.T) {
-	m := NewMap(defaultMapSize)
-	for i := 0; i < defaultMapSize; i++ {
+	m := NewMap(testMapSize)
+	for i := 0; i < testMapSize; i++ {
 		m.Set(i, rand.Int())
 	}
 	if m.Allocations != 0 {
@@ -52,24 +54,24 @@ func Test_newElement_does_something(t *testing.T) {
 }
 
 func Test_newElement_really_allocates(t *testing.T) {
-	m := NewMap(defaultMapSize)
-	for i := 0; i < defaultMapSize*2; i++ {
+	m := NewMap(testMapSize)
+	for i := 0; i < testMapSize*2; i++ {
 		m.Set(i, rand.Int())
 	}
-	if m.Allocations != defaultMapSize {
-		t.Errorf("allocations should be %d! actually:%d", defaultMapSize, m.Allocations)
+	if m.Allocations != testMapSize {
+		t.Errorf("allocations should be %d! actually:%d", testMapSize, m.Allocations)
 	}
 }
 
 func Test_Set_parallel(t *testing.T) {
 	runtime.GOMAXPROCS(4)
-	m := NewMap(defaultMapSize)
+	m := NewMap(testMapSize)
 	var wg sync.WaitGroup
 	for i := 0; i < 4; i++ {
 		wg.Add(1)
 		go func() {
 			for k := 0; k < 10000; k++ {
-				v := rand.Intn(defaultMapSize)
+				v := rand.Intn(testMapSize)
 				swapped := m.Set(v, v)
 				if !swapped {
 					t.Error("not swapped Retries:", m.Retries, "Collisions", m.Collisions)
@@ -82,7 +84,7 @@ func Test_Set_parallel(t *testing.T) {
 }
 
 func Test_Get_does_something(t *testing.T) {
-	m := NewMap(defaultMapSize)
+	m := NewMap(testMapSize)
 	v := rand.Int()
 	m.Set(1, v)
 	result := m.Get(1).(int)
@@ -95,29 +97,28 @@ func Test_Get_does_something(t *testing.T) {
 
 func Benchmark_hypermap_write(b *testing.B) {
 	b.StopTimer()
-	m := NewMap(b.N * 2)
+	m := NewMap(b.N * benchSizeCoef)
 	b.StartTimer()
 	for i := 0; i < b.N; i++ {
 		m.Set(rand.Int(), rand.Int())
 	}
-	fmt.Println(m)
 }
 
 func Benchmark_map_write(b *testing.B) {
 	b.StopTimer()
-	m := make(map[int]int, b.N*2)
-	// mtx := new(sync.RWMutex)
+	m := make(map[int]int, b.N*benchSizeCoef)
+	mtx := new(sync.RWMutex)
 	b.StartTimer()
 	for i := 0; i < b.N; i++ {
-		// mtx.Lock()
+		mtx.Lock()
 		m[rand.Int()] = rand.Int()
-		// mtx.Unlock()
+		mtx.Unlock()
 	}
 }
 
 func xBenchmark_hypermap_read(b *testing.B) {
 	b.StopTimer()
-	m := NewMap(b.N * 2)
+	m := NewMap(b.N * benchSizeCoef)
 	for i := 0; i < b.N; i++ {
 		m.Set(i, i)
 	}
@@ -132,7 +133,7 @@ func xBenchmark_hypermap_read(b *testing.B) {
 
 func xBenchmark_map_read(b *testing.B) {
 	b.StopTimer()
-	m := make(map[int]int, b.N*2)
+	m := make(map[int]int, b.N*benchSizeCoef)
 	for i := 0; i < b.N; i++ {
 		m[i] = i
 	}
@@ -147,8 +148,8 @@ func xBenchmark_map_read(b *testing.B) {
 	}
 }
 
-func xBenchmark_hashing(b *testing.B) {
-	m := NewMap(defaultMapSize)
+func Benchmark_hashing(b *testing.B) {
+	m := NewMap(testMapSize)
 	for i := 0; i < b.N; i++ {
 		m.hashy(i)
 	}

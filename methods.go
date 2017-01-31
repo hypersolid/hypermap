@@ -29,6 +29,7 @@ func (m *Map) set(key, value interface{}, bucket uint64, el *element) bool {
 		steps++
 		entity = (*element)(currentElement)
 		if entity.key == key {
+			atomic.AddUint64(&m.Collisions, 1)
 			el.next = entity.next
 			return m.cas(parentPtrLocation, unsafe.Pointer(el))
 		}
@@ -36,7 +37,6 @@ func (m *Map) set(key, value interface{}, bucket uint64, el *element) bool {
 		currentElement = entity.next
 	}
 	if steps > 0 {
-		atomic.AddUint64(&m.Collisions, 1)
 		if steps > m.MaxChain {
 			m.MaxChain = steps
 		}

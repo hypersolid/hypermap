@@ -56,7 +56,7 @@ type element struct {
 func NewMap(size int) *Map {
 	rand.Seed(time.Now().UTC().UnixNano())
 	m := &Map{
-		seed:  uintptr(rand.Int63()),
+		seed:  uintptr(rand.Intn(256)),
 		array: make([]unsafe.Pointer, size),
 		usize: uint64(size),
 		isize: size,
