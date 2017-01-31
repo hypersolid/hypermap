@@ -3,100 +3,131 @@ package main
 import (
 	"math/rand"
 	"sync/atomic"
+	"time"
 	"unsafe"
 )
+
+const (
+	maxRetries          = 3
+	maxElementsInBucket = 8
+)
+
+var nullPtr unsafe.Pointer = unsafe.Pointer(uintptr(0))
 
 //go:linkname memhash runtime.memhash
 func memhash(p unsafe.Pointer, seed, s uintptr) uintptr
 
 // Map is awesome lockfree hashtable
 type Map struct {
-	arr        []unsafe.Pointer
-	seed       uintptr
-	load       uint64
-	writes     uint64
-	hits       uint64
-	misses     uint64
-	reads      uint64
-	collisions uint64
-	retries    uint64
+	array []unsafe.Pointer
+	seed  uintptr
+
+	Retries    uint64
+	Collisions uint64
+	Load       uint64
+
+	pool []element
+	head unsafe.Pointer
+
+	usize uint64
+	isize int
 }
 
-type entry struct {
+type element struct {
 	key, value interface{}
-	deleted    bool
+	next       unsafe.Pointer
 }
 
 // NewMap is a constructor for the Map
 func NewMap(size int) *Map {
-	m := Map{seed: uintptr(rand.Int63())}
-	m.arr = make([]unsafe.Pointer, size)
-	return &m
-}
-
-func (m *Map) wrap(position uint64) int {
-	return int(position % uint64(len(m.arr)))
-}
-
-func (m *Map) entityAt(position int) *entry {
-	entryPointer := m.arr[position]
-	if entryPointer == nil {
-		return nil
+	rand.Seed(time.Now().UTC().UnixNano())
+	m := &Map{
+		seed:  uintptr(rand.Int63()),
+		array: make([]unsafe.Pointer, size),
+		usize: uint64(size),
+		isize: size,
 	}
-	return (*entry)(entryPointer)
+
+	m.pool = make([]element, size*maxElementsInBucket)
+	m.head = unsafe.Pointer(&m.pool[0])
+	for i := 1; i < size*maxElementsInBucket; i++ {
+		m.pool[i-1].next = unsafe.Pointer(&m.pool[i])
+	}
+
+	return m
 }
 
-func (m *Map) probe(position uint64, step int) uint64 {
-	return position + uint64(step)
+func (m *Map) pop() *element {
+	if m.head == nullPtr {
+		return new(element)
+	}
+	currentHead := (*element)(m.head)
+	nextHead := currentHead.next
+	if m.cas(&m.head, nextHead) {
+		return currentHead
+	}
+	return new(element)
 }
 
-func (m *Map) cas(position int, rp *entry) bool {
-	circularPosition := position % len(m.arr)
+func (m *Map) cas(oldValuePointerLocation *unsafe.Pointer, newValuePointer unsafe.Pointer) bool {
 	return atomic.CompareAndSwapPointer(
-		&m.arr[circularPosition],
-		unsafe.Pointer(m.arr[circularPosition]),
-		unsafe.Pointer(rp),
+		oldValuePointerLocation,
+		*oldValuePointerLocation,
+		newValuePointer,
 	)
 }
 
+// Set adds or replaces entry in the map
 func (m *Map) Set(key, value interface{}) bool {
-	r := 0
-	h := m.hashy(key)
-	for !m.set(key, value, h) {
-		atomic.AddUint64(&(m.retries), 1)
-		r++
-		if r > 10 {
+	retries := 0
+	bucket := m.hashy(key) % m.usize
+	for !m.set(key, value, bucket) {
+		// atomic.AddUint64(&m.Retries, 1)
+		retries++
+		if retries > maxRetries {
 			return false
 		}
 	}
+	// atomic.AddUint64(&m.Load, 1)
 	return true
 }
 
-// Set creates or replaces entry in the Map
-func (m *Map) set(key, value interface{}, position uint64) bool {
-	rp := &entry{key: key, value: value}
-	for i := 0; i < len(m.arr); i++ {
-		pos := m.wrap(m.probe(position, i))
-		entity := m.entityAt(pos)
-		if entity != nil && entity.key != key {
-			atomic.AddUint64(&m.collisions, 1)
-			continue
+func (m *Map) set(key, value interface{}, bucket uint64) bool {
+	prev := &m.array[bucket]
+	next := m.array[bucket]
+	var entity *element
+
+	for uintptr(next) != uintptr(0) {
+		entity = (*element)(next)
+		if entity != nil && entity.key == key {
+			newElement := m.pop()
+			newElement.key = key
+			newElement.value = value
+			newElement.next = entity.next
+			return m.cas(prev, unsafe.Pointer(newElement))
 		}
-		atomic.AddUint64(&m.load, 1)
-		return m.cas(pos, rp)
+		prev = &entity.next
+		next = entity.next
 	}
-	return false
+
+	newElement := m.pop()
+	newElement.key = key
+	newElement.value = value
+	newElement.next = m.array[bucket]
+	return m.cas(&m.array[bucket], unsafe.Pointer(newElement))
 }
 
-// Get reads entry from the Map, in case entry does not exist returns nil
+// Get reads element from the Map, in case element does not exist returns nil
 func (m *Map) Get(key interface{}) interface{} {
-	position := m.hashy(key)
-	for i := 0; i < len(m.arr); i++ {
-		pos := m.wrap(m.probe(position, i))
-		entity := m.entityAt(pos)
+	bucket := m.hashy(key) % m.usize
+	next := m.array[bucket]
+	var entity *element
+	for uintptr(next) != uintptr(0) {
+		entity = (*element)(next)
 		if entity != nil && entity.key == key {
 			return entity.value
 		}
+		next = entity.next
 	}
 	return nil
 }

@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"math/rand"
 	"runtime"
 	"sync"
@@ -52,15 +51,13 @@ func Test_Set_parallel(t *testing.T) {
 				v := rand.Intn(defaultMapSize)
 				swapped := m.Set(v, v)
 				if !swapped {
-					t.Error("not swapped retries:", m.retries, "collisions", m.collisions)
+					t.Error("not swapped Retries:", m.Retries, "Collisions", m.Collisions)
 				}
 			}
 			wg.Done()
 		}()
 	}
 	wg.Wait()
-	fmt.Println(m.retries)
-	fmt.Println(m.collisions)
 }
 
 func Test_Get_does_something(t *testing.T) {
@@ -84,7 +81,7 @@ func Benchmark_hypermap_write(b *testing.B) {
 	}
 }
 
-func Benchmark_map_write(b *testing.B) {
+func xBenchmark_map_write(b *testing.B) {
 	b.StopTimer()
 	m := make(map[int]string, b.N*2)
 	mtx := new(sync.RWMutex)
@@ -96,7 +93,7 @@ func Benchmark_map_write(b *testing.B) {
 	}
 }
 
-func Benchmark_hypermap_read(b *testing.B) {
+func xBenchmark_hypermap_read(b *testing.B) {
 	b.StopTimer()
 	m := NewMap(b.N * 2)
 	for i := 0; i < b.N; i++ {
@@ -106,12 +103,12 @@ func Benchmark_hypermap_read(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		result := m.Get(i)
 		if result == nil || result.(int) != i {
-			b.Error(i, result, m.load, m.collisions, m.retries, "busted")
+			b.Error(i, result, m.Load, m.Collisions, m.Retries, "busted")
 		}
 	}
 }
 
-func Benchmark_map_read(b *testing.B) {
+func xBenchmark_map_read(b *testing.B) {
 	b.StopTimer()
 	m := make(map[int]int, b.N*2)
 	for i := 0; i < b.N; i++ {
@@ -128,7 +125,7 @@ func Benchmark_map_read(b *testing.B) {
 	}
 }
 
-func Benchmark_hashing(b *testing.B) {
+func xBenchmark_hashing(b *testing.B) {
 	m := NewMap(defaultMapSize)
 	for i := 0; i < b.N; i++ {
 		m.hashy(i)
