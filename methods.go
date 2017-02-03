@@ -1,7 +1,6 @@
 package main
 
 import (
-	"runtime"
 	"sync/atomic"
 	"unsafe"
 )
@@ -13,8 +12,8 @@ func (m *Map) Set(key, value interface{}) bool {
 	el.key = key
 	el.value = value
 	for !m.set(key, value, bucket, el) {
-		atomic.AddUint64(&m.Retries, 1)
-		runtime.Gosched()
+		// atomic.AddUint64(&m.Retries, 1)
+		// runtime.Gosched()
 	}
 	return true
 }
@@ -29,22 +28,30 @@ func (m *Map) set(key, value interface{}, bucket uint64, el *element) bool {
 		steps++
 		entity = (*element)(currentElement)
 		if entity.key == key {
-			atomic.AddUint64(&m.Collisions, 1)
+			// atomic.AddUint64(&m.Collisions, 1)
 			el.next = entity.next
-			return m.cas(parentPtrLocation, unsafe.Pointer(el))
+			return atomic.CompareAndSwapPointer(
+				parentPtrLocation,
+				currentElement,
+				unsafe.Pointer(el),
+			)
 		}
 		parentPtrLocation = &entity.next
 		currentElement = entity.next
 	}
-	if steps > 0 {
-		if steps > m.MaxChain {
-			m.MaxChain = steps
-		}
-	} else {
-		atomic.AddUint64(&m.Load, 1)
-	}
-	el.next = m.array[bucket]
-	return m.cas(&m.array[bucket], unsafe.Pointer(el))
+	// if steps > 0 {
+	// 	if steps > m.MaxChain {
+	// 		m.MaxChain = steps
+	// 	}
+	// } else {
+	// 	// atomic.AddUint64(&m.Load, 1)
+	// }
+	el.next = currentElement
+	return atomic.CompareAndSwapPointer(
+		parentPtrLocation,
+		currentElement,
+		unsafe.Pointer(el),
+	)
 }
 
 // Get reads element from the Map, in case element does not exist returns nil

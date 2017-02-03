@@ -2,14 +2,14 @@ package main
 
 import (
 	"math/rand"
-	"runtime"
 	"sync"
 	"testing"
 )
 
 const (
-	testMapSize   = 1024
-	benchSizeCoef = 2
+	testMapSize     = 1024
+	benchSizeCoef   = 2
+	benchGoRoutines = 1000
 )
 
 func Test_Hash_of_string(t *testing.T) {
@@ -53,7 +53,7 @@ func Test_newElement_does_something(t *testing.T) {
 	}
 }
 
-func Test_newElement_really_allocates(t *testing.T) {
+func xTest_newElement_really_allocates(t *testing.T) {
 	m := NewMap(testMapSize)
 	for i := 0; i < testMapSize*2; i++ {
 		m.Set(i, rand.Int())
@@ -64,7 +64,6 @@ func Test_newElement_really_allocates(t *testing.T) {
 }
 
 func Test_Set_parallel(t *testing.T) {
-	runtime.GOMAXPROCS(4)
 	m := NewMap(testMapSize)
 	var wg sync.WaitGroup
 	for i := 0; i < 4; i++ {
@@ -94,8 +93,63 @@ func Test_Get_does_something(t *testing.T) {
 }
 
 // benchmarks
+func Benchmark_hypermap_parallel_write(b *testing.B) {
+	b.StopTimer()
+	threads := benchGoRoutines
+	start := make(chan struct{}, threads)
+	done := make(chan struct{}, threads)
+	m := NewMap(b.N * benchSizeCoef)
+	for k := 0; k < threads; k++ {
+		go func() {
+			<-start
+			for i := 0; i < b.N/threads; i++ {
+				m.Set(rand.Int(), rand.Int())
+			}
+			done <- struct{}{}
+		}()
+	}
+	b.StartTimer()
 
-func Benchmark_hypermap_write(b *testing.B) {
+	for k := 0; k < threads; k++ {
+		start <- struct{}{}
+	}
+
+	for k := 0; k < threads; k++ {
+		<-done
+	}
+	// fmt.Println(m)
+}
+
+func Benchmark_map_parallel_write(b *testing.B) {
+	b.StopTimer()
+	threads := benchGoRoutines
+	start := make(chan struct{}, threads)
+	done := make(chan struct{}, threads)
+	m := make(map[interface{}]interface{}, b.N*benchSizeCoef)
+	mtx := new(sync.RWMutex)
+	for k := 0; k < threads; k++ {
+		go func() {
+			<-start
+			for i := 0; i < b.N/threads; i++ {
+				mtx.Lock()
+				m[rand.Int()] = rand.Int()
+				mtx.Unlock()
+			}
+			done <- struct{}{}
+		}()
+	}
+	b.StartTimer()
+
+	for k := 0; k < threads; k++ {
+		start <- struct{}{}
+	}
+
+	for k := 0; k < threads; k++ {
+		<-done
+	}
+}
+
+func xBenchmark_hypermap_write(b *testing.B) {
 	b.StopTimer()
 	m := NewMap(b.N * benchSizeCoef)
 	b.StartTimer()
@@ -104,7 +158,7 @@ func Benchmark_hypermap_write(b *testing.B) {
 	}
 }
 
-func Benchmark_map_write(b *testing.B) {
+func xBenchmark_map_write(b *testing.B) {
 	b.StopTimer()
 	m := make(map[int]int, b.N*benchSizeCoef)
 	mtx := new(sync.RWMutex)
@@ -148,7 +202,7 @@ func xBenchmark_map_read(b *testing.B) {
 	}
 }
 
-func Benchmark_hashing(b *testing.B) {
+func xBenchmark_hashing(b *testing.B) {
 	m := NewMap(testMapSize)
 	for i := 0; i < b.N; i++ {
 		m.hashy(i)

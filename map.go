@@ -3,14 +3,15 @@ package main
 import (
 	"fmt"
 	"math/rand"
+	"sync"
 	"time"
 	"unsafe"
 )
 
 const (
-	maxRetries          = 3
+	maxRetries          = 0
 	maxElementsInBucket = 8
-	poolCoefficient     = 1
+	poolCoefficient     = 4
 	maxLoad             = 0.9
 )
 
@@ -26,30 +27,38 @@ type Map struct {
 	Load        uint64
 	Allocations uint64
 	MaxChain    uint64
+	Swaps       uint64
 
 	pool []element
 	head unsafe.Pointer
 
 	usize uint64
 	isize int
+
+	mutex sync.RWMutex
 }
 
 func (m *Map) String() string {
+
+	ratio := -1.0
+	if m.Swaps < m.Allocations {
+		ratio = float64(m.Swaps) / float64(m.Allocations)
+	}
 	return fmt.Sprintf(
-		"Retries:%d Collisions:%d Chain:%d Load:%.2f Allocations:%d | %d",
+		"Retries:%d Collisions:%d Chain:%d Load:%.2f Picks/Allocations: %.2f | %d",
 		m.Retries,
 		m.Collisions,
 		m.MaxChain,
 		float64(m.Load)/float64(m.usize),
-		m.Allocations,
+		ratio,
 		m.usize,
 	)
 }
 
 // element is internal entity that is used in the map
 type element struct {
-	key, value interface{}
 	next       unsafe.Pointer
+	key, value interface{}
 }
 
 // NewMap is a constructor for the Map
