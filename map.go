@@ -9,71 +9,51 @@ import (
 )
 
 const (
-	maxRetries          = 0
-	maxElementsInBucket = 8
-	poolCoefficient     = 4
-	maxLoad             = 0.9
+	initialSize = 256
 )
 
-var nullPtr unsafe.Pointer
-
-// Map is awesome lockfree hashtable
+// Map is awesome lockfree int->int only hashtable
 type Map struct {
-	array []unsafe.Pointer
-	seed  uintptr
+	sync.RWMutex
+	array                           *[]uint64
+	seed                            uintptr
+	keySize, valueSize              uint64
+	deletedMask, keyMask, valueMask uint64
 
-	Retries     uint64
-	Collisions  uint64
-	Load        uint64
-	Allocations uint64
-	MaxChain    uint64
-	Swaps       uint64
-
-	pool []element
-	head unsafe.Pointer
-
-	usize uint64
-	isize int
-
-	mutex sync.RWMutex
+	size uint64
 }
 
+// String represents Map in human readable format
 func (m *Map) String() string {
-
-	ratio := -1.0
-	if m.Swaps < m.Allocations {
-		ratio = float64(m.Swaps) / float64(m.Allocations)
-	}
 	return fmt.Sprintf(
-		"Retries:%d Collisions:%d Chain:%d Load:%.2f Picks/Allocations: %.2f | %d",
-		m.Retries,
-		m.Collisions,
-		m.MaxChain,
-		float64(m.Load)/float64(m.usize),
-		ratio,
-		m.usize,
+		"HyperMap<%d %d bits -> %d bits>",
+		unsafe.Pointer(m),
+		m.keySize,
+		m.valueSize,
 	)
 }
 
-// element is internal entity that is used in the map
-type element struct {
-	next       unsafe.Pointer
-	key, value interface{}
-}
-
 // NewMap is a constructor for the Map
-func NewMap(size int) *Map {
+func NewMap(keySize uint64) *Map {
+	if keySize < 16 {
+		panic("For maps with key < 16 bits use simple array")
+	}
+	if keySize > 62 {
+		panic("Maximum keySize is 62 bits")
+	}
+
 	rand.Seed(time.Now().UTC().UnixNano())
+	array := make([]uint64, initialSize)
 	m := &Map{
-		seed:  uintptr(rand.Intn(256)),
-		array: make([]unsafe.Pointer, size),
-		usize: uint64(size),
-		isize: size,
+		seed:      uintptr(rand.Int()),
+		array:     &array,
+		size:      initialSize,
+		keySize:   keySize,
+		valueSize: 63 - keySize,
 	}
-	m.pool = make([]element, size*poolCoefficient)
-	m.head = unsafe.Pointer(&m.pool[0])
-	for i := 1; i < size*poolCoefficient; i++ {
-		m.pool[i-1].next = unsafe.Pointer(&m.pool[i])
-	}
+
+	m.generateMasks()
+	m.markFree()
+
 	return m
 }
