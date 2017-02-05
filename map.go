@@ -19,6 +19,7 @@ type Map struct {
 	seed                            uintptr
 	keySize, valueSize              uint64
 	deletedMask, keyMask, valueMask uint64
+	maxKey, maxValue                uint64
 
 	size uint64
 }
@@ -54,6 +55,9 @@ func NewMap(keySize uint64) *Map {
 
 	m.generateMasks()
 	m.markFree()
+
+	m.maxKey = (m.keyMask >> m.valueSize) - 1
+	m.maxValue = m.valueMask
 
 	return m
 }
