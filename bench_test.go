@@ -7,7 +7,7 @@ import (
 )
 
 const (
-	testProcs = 1
+	testProcs = 10
 )
 
 func Benchmark_hypermap_parallel_write(b *testing.B) {
@@ -18,8 +18,8 @@ func Benchmark_hypermap_parallel_write(b *testing.B) {
 	m := NewMap(40)
 	for k := 0; k < testProcs; k++ {
 		go func() {
-			<-start
 			value := uint64(rand.Intn(int(m.maxValue)))
+			<-start
 			for i := uint64(0); i < uint64(b.N)/testProcs; i++ {
 				m.Set(i, value)
 			}

@@ -2,14 +2,12 @@ package main
 
 import (
 	"fmt"
-	"math/rand"
 	"sync"
-	"time"
 	"unsafe"
 )
 
 const (
-	initialSize = 10000000
+	initialSize = 35600000
 )
 
 // Map is awesome lockfree int->int only hashtable
@@ -20,6 +18,8 @@ type Map struct {
 	keySize, valueSize              uint64
 	deletedMask, keyMask, valueMask uint64
 	maxKey, maxValue                uint64
+
+	ptrBuffer unsafe.Pointer
 
 	size uint64
 }
@@ -43,10 +43,8 @@ func NewMap(keySize uint64) *Map {
 		panic("Maximum keySize is 62 bits")
 	}
 
-	rand.Seed(time.Now().UTC().UnixNano())
 	array := make([]uint64, initialSize)
 	m := &Map{
-		seed:      uintptr(rand.Int()),
 		array:     &array,
 		size:      initialSize,
 		keySize:   keySize,
