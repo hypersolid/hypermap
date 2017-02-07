@@ -58,3 +58,30 @@ func Test_available_works(t *testing.T) {
 		t.Errorf("bucket 2 should be available")
 	}
 }
+
+func Test_deleted_works(t *testing.T) {
+	m := NewMap(20)
+	(*m.array)[1] |= m.deletedMask
+	if m.deleted(0) {
+		t.Errorf("bucket #0 must not be deleted")
+	}
+	if !m.deleted(1) {
+		t.Errorf("bucket #1 must be deleted")
+	}
+}
+
+func Test_key_works(t *testing.T) {
+	m := NewMap(20)
+	(*m.array)[0] = uint64(79212312312321321)
+	if bitsToString(m.key(0)) != "0000000000000000000000000000000000000000000000000010001100101101" {
+		t.Errorf("error key is %s", bitsToString(m.key(0)))
+	}
+}
+
+func Test_value_works(t *testing.T) {
+	m := NewMap(20)
+	(*m.array)[0] = uint64(79212312312321321)
+	if bitsToString(m.value(0)) != "0000000000000000000000110010110110101001001101101001010100101001" {
+		t.Errorf("error value is %s", bitsToString(m.value(0)))
+	}
+}

@@ -39,6 +39,18 @@ func (m *Map) available(bucket uint64) (uint64, bool) {
 	return 0, false
 }
 
+func (m *Map) deleted(bucket uint64) bool {
+	return ((*m.array)[bucket] & m.deletedMask) == m.deletedMask
+}
+
+func (m *Map) key(bucket uint64) uint64 {
+	return ((*m.array)[bucket] & m.keyMask) >> m.valueSize
+}
+
+func (m *Map) value(bucket uint64) uint64 {
+	return (*m.array)[bucket] & m.valueMask
+}
+
 func bitsToString(value uint64) string {
 	result := ""
 	for i := uint64(0); i < 64; i++ {

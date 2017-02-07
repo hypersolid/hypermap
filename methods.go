@@ -1,9 +1,6 @@
 package main
 
-import (
-	"fmt"
-	"sync/atomic"
-)
+import "sync/atomic"
 
 // Set adds or replaces entry in the map
 func (m *Map) Set(key, value uint64) {
@@ -12,32 +9,33 @@ func (m *Map) Set(key, value uint64) {
 	m.set(bucket, key, record)
 }
 
-func (m *Map) set(ptr, key, record uint64) {
-	for {
+func (m *Map) set(bucket, key, record uint64) {
+	var ptr uint64
+	for offset := uint64(0); offset < m.size; offset++ {
+		ptr = (bucket + offset) % m.size
 		currentValue, status := m.available(ptr)
-		if status && atomic.CompareAndSwapUint64(&(*m.array)[ptr], currentValue, record) {
-			// fmt.Println(bitsToString((*m.array)[ptr]), "\n", bitsToString(currentValue), status, "X")
-			return
-		} else {
-			fmt.Println((*m.array)[ptr], currentValue, status)
-			return
+		if status {
+			if atomic.CompareAndSwapUint64(&(*m.array)[ptr], currentValue, record) {
+				return
+			}
+			offset--
 		}
-		// ptr = (ptr + 1) % m.size
 	}
+	panic("map is 100% full")
 }
 
-//
-// // Get reads element from the Map, in case element does not exist returns nil
-// func (m *Map) Get(key interface{}) interface{} {
-// 	bucket := m.hashy(key) % m.usize
-// 	next := m.array[bucket]
-// 	var entity *element
-// 	for uintptr(next) != uintptr(0) {
-// 		entity = (*element)(next)
-// 		if entity != nil && entity.key == key {
-// 			return entity.value
-// 		}
-// 		next = entity.next
-// 	}
-// 	return nil
-// }
+// Get grabs the value for the key
+func (m *Map) Get(key uint64) (uint64, bool) {
+	bucket := m.hashy(key) % m.size
+	var ptr uint64
+	for offset := uint64(0); offset < m.size; offset++ {
+		ptr = (bucket + offset) % m.size
+		if m.deleted(ptr) {
+			continue
+		}
+		if m.key(ptr) == key {
+			return m.value(ptr), true
+		}
+	}
+	return 0, false
+}

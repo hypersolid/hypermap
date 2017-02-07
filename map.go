@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	initialSize = 256
+	initialSize = 10000000
 )
 
 // Map is awesome lockfree int->int only hashtable
