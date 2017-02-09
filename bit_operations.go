@@ -3,7 +3,6 @@ package main
 import "fmt"
 
 func (m *Map) generateMasks() {
-	m.deletedMask = 1 << 63
 	for i := uint64(0); i < m.keySize; i++ {
 		m.keyMask |= 1 << (i + m.valueSize)
 	}
@@ -14,7 +13,7 @@ func (m *Map) generateMasks() {
 
 func (m *Map) markFree() {
 	for i := uint64(0); i < m.size; i++ {
-		(*m.array)[i] |= m.keyMask
+		m.array[i] |= m.keyMask
 	}
 }
 
@@ -28,33 +27,31 @@ func (m *Map) fuse(key, value uint64) uint64 {
 	return (key << m.valueSize) | value
 }
 
-func (m *Map) available(bucket uint64) (uint64, bool) {
-	current := (*m.array)[bucket]
-	if (current & m.deletedMask) == m.deletedMask {
-		return current, true
+func (m *Map) available(value uint64) bool {
+	if (value&m.keyMask) == m.keyMask || (value&m.valueMask) == m.valueMask {
+		return true
 	}
-	if (current & m.keyMask) == m.keyMask {
-		return current, true
-	}
-	return 0, false
+	return false
 }
 
 func (m *Map) deleted(bucket uint64) bool {
-	return ((*m.array)[bucket] & m.deletedMask) == m.deletedMask
+	return (m.array[bucket] & m.valueMask) == m.valueMask
 }
 
 func (m *Map) key(bucket uint64) uint64 {
-	return ((*m.array)[bucket] & m.keyMask) >> m.valueSize
+	return (m.array[bucket] & m.keyMask) >> m.valueSize
 }
 
 func (m *Map) value(bucket uint64) uint64 {
-	return (*m.array)[bucket] & m.valueMask
+	return m.array[bucket] & m.valueMask
 }
 
 func bitsToString(value uint64) string {
 	result := ""
+	var tmp uint64
 	for i := uint64(0); i < 64; i++ {
-		result += fmt.Sprintf("%d", (value>>(63-i))&1)
+		tmp = (value >> (63 - i)) & 1
+		result += fmt.Sprintf("%d", tmp)
 	}
 	return result
 }

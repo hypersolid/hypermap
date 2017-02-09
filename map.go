@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"sync"
 	"unsafe"
 )
 
@@ -12,12 +11,12 @@ const (
 
 // Map is awesome lockfree int->int only hashtable
 type Map struct {
-	sync.RWMutex
-	array                           *[]uint64
-	seed                            uintptr
-	keySize, valueSize              uint64
-	deletedMask, keyMask, valueMask uint64
-	maxKey, maxValue                uint64
+	array              []uint64
+	ptrArray           []*uint64
+	seed               uintptr
+	keySize, valueSize uint64
+	keyMask, valueMask uint64
+	maxKey, maxValue   uint64
 
 	ptrBuffer unsafe.Pointer
 
@@ -27,8 +26,7 @@ type Map struct {
 // String represents Map in human readable format
 func (m *Map) String() string {
 	return fmt.Sprintf(
-		"HyperMap<%d %d bits -> %d bits>",
-		unsafe.Pointer(m),
+		"HyperMap<%d bits -> %d bits>",
 		m.keySize,
 		m.valueSize,
 	)
@@ -39,23 +37,30 @@ func NewMap(keySize uint64) *Map {
 	if keySize < 16 {
 		panic("For maps with key < 16 bits use simple array")
 	}
-	if keySize > 62 {
+	if keySize > 63 {
 		panic("Maximum keySize is 62 bits")
 	}
 
-	array := make([]uint64, initialSize)
 	m := &Map{
-		array:     &array,
+		array:     make([]uint64, initialSize),
+		ptrArray:  make([]*uint64, initialSize),
 		size:      initialSize,
 		keySize:   keySize,
-		valueSize: 63 - keySize,
+		valueSize: 64 - keySize,
 	}
 
 	m.generateMasks()
 	m.markFree()
 
 	m.maxKey = (m.keyMask >> m.valueSize) - 1
-	m.maxValue = m.valueMask
+	m.maxValue = m.valueMask - 1
 
 	return m
+}
+
+func main() {
+	m := NewMap(20)
+	for i := uint64(0); i < 100; i++ {
+		m.Set(i, i)
+	}
 }

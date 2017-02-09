@@ -18,7 +18,7 @@ func Test_NewMap_works(t *testing.T) {
 
 func Test_String_works(t *testing.T) {
 	m := NewMap(20)
-	match, _ := regexp.MatchString(`HyperMap<\d+ 20 bits -> 43 bits>`, m.String())
+	match, _ := regexp.MatchString(`HyperMap<20 bits -> 44 bits>`, m.String())
 	if !match {
 		t.Errorf("String() should not be %s", m.String())
 	}
@@ -36,10 +36,10 @@ func Test_Map_panics_on_too_short_key(t *testing.T) {
 func Test_Map_panics_on_too_long_key(t *testing.T) {
 	defer func() {
 		if r := recover(); r == nil {
-			t.Errorf("Map should panic on short key")
+			t.Errorf("Map should panic on long key")
 		}
 	}()
-	NewMap(63)
+	NewMap(64)
 }
 
 func Test_Set_works(t *testing.T) {
@@ -95,8 +95,8 @@ func Test_Get_probes_array_until_finds_value(t *testing.T) {
 	bucket := m.hashy(key) % m.size
 	m.Set(key, value)
 
-	(*m.array)[(bucket+1)%m.size] = (*m.array)[bucket]
-	(*m.array)[bucket] |= m.deletedMask
+	m.array[(bucket+1)%m.size] = m.array[bucket]
+	m.array[bucket] |= m.valueMask
 
 	v, ok := m.Get(key)
 	if !ok {
