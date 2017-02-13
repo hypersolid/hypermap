@@ -3,7 +3,7 @@ package main
 import "testing"
 
 func Test_bitsToString_works(t *testing.T) {
-	m := NewMap(20)
+	m := test_create_map()
 	if bitsToString(m.keyMask) != "1111111111111111111100000000000000000000000000000000000000000000" {
 		t.Errorf("deletedMask should not be %s", bitsToString(m.keyMask))
 	}
@@ -18,7 +18,7 @@ func Test_fuse_panics_on_too_big_key(t *testing.T) {
 			t.Errorf("Map should panic on big key passed to fuse")
 		}
 	}()
-	m := NewMap(16)
+	m := NewMap(16, 256)
 	m.fuse(66000, 1)
 }
 
@@ -28,12 +28,12 @@ func Test_fuse_panics_on_too_big_value(t *testing.T) {
 			t.Errorf("Map should panic on big value passed to fuse")
 		}
 	}()
-	m := NewMap(63)
+	m := NewMap(63, 256)
 	m.fuse(1, 1)
 }
 
 func Test_fuse_works(t *testing.T) {
-	m := NewMap(20)
+	m := test_create_map()
 	result := m.fuse(99123, 978)
 	if bitsToString(result) != "0001100000110011001100000000000000000000000000000000001111010010" {
 		t.Errorf("fuse error %s", bitsToString(result))
@@ -41,7 +41,7 @@ func Test_fuse_works(t *testing.T) {
 }
 
 func Test_available_works(t *testing.T) {
-	m := NewMap(20)
+	m := test_create_map()
 
 	if ok := m.available(m.fuse(1, 2)); ok {
 		t.Errorf("bucket 0 should not be available")
@@ -55,7 +55,7 @@ func Test_available_works(t *testing.T) {
 }
 
 func Test_deleted_works(t *testing.T) {
-	m := NewMap(20)
+	m := test_create_map()
 	m.array[1] |= m.valueMask
 	if m.deleted(0) {
 		t.Errorf("bucket #0 must not be deleted")
@@ -66,7 +66,7 @@ func Test_deleted_works(t *testing.T) {
 }
 
 func Test_key_works(t *testing.T) {
-	m := NewMap(20)
+	m := test_create_map()
 	m.array[0] = uint64(3 << m.valueSize)
 	if bitsToString(m.key(0)) != "0000000000000000000000000000000000000000000000000000000000000011" {
 		t.Errorf("error key is %s", bitsToString(m.key(0)))
@@ -74,7 +74,7 @@ func Test_key_works(t *testing.T) {
 }
 
 func Test_value_works(t *testing.T) {
-	m := NewMap(20)
+	m := test_create_map()
 	m.array[0] = uint64(3)
 	if bitsToString(m.value(0)) != "0000000000000000000000000000000000000000000000000000000000000011" {
 		t.Errorf("error value is %s", bitsToString(m.value(0)))

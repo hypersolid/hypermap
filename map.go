@@ -2,23 +2,18 @@ package main
 
 import (
 	"fmt"
-	"unsafe"
-)
-
-const (
-	initialSize = 35600000
+	"sync"
 )
 
 // Map is awesome lockfree int->int only hashtable
 type Map struct {
+	sync.RWMutex
+
 	array              []uint64
-	ptrArray           []*uint64
 	seed               uintptr
 	keySize, valueSize uint64
 	keyMask, valueMask uint64
 	maxKey, maxValue   uint64
-
-	ptrBuffer unsafe.Pointer
 
 	size uint64
 }
@@ -33,7 +28,7 @@ func (m *Map) String() string {
 }
 
 // NewMap is a constructor for the Map
-func NewMap(keySize uint64) *Map {
+func NewMap(keySize uint64, size uint64) *Map {
 	if keySize < 16 {
 		panic("For maps with key < 16 bits use simple array")
 	}
@@ -42,9 +37,8 @@ func NewMap(keySize uint64) *Map {
 	}
 
 	m := &Map{
-		array:     make([]uint64, initialSize),
-		ptrArray:  make([]*uint64, initialSize),
-		size:      initialSize,
+		array:     make([]uint64, size),
+		size:      size,
 		keySize:   keySize,
 		valueSize: 64 - keySize,
 	}
@@ -59,7 +53,7 @@ func NewMap(keySize uint64) *Map {
 }
 
 func main() {
-	m := NewMap(20)
+	m := NewMap(20, 256)
 	for i := uint64(0); i < 100; i++ {
 		m.Set(i, i)
 	}
