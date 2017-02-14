@@ -8,16 +8,16 @@ import (
 )
 
 const (
-	testCores = 8
-	testProcs = 10000
-	testSize  = 35600000
+	testCores   = 8
+	testProcs   = 10000
+	testMapSize = 256
 )
 
 func Benchmark_hypermap_parallel_write(b *testing.B) {
 	procs := runtime.GOMAXPROCS(testCores)
 	start := make(chan struct{}, testProcs)
 	done := make(chan struct{}, testProcs)
-	m := NewMap(40, testSize)
+	m := NewMap(40, testMapSize)
 	keys := make([]uint64, b.N)
 	values := make([]uint64, b.N)
 	for i := 0; i < b.N; i++ {
@@ -53,7 +53,7 @@ func Benchmark_map_parallel_write(b *testing.B) {
 	start := make(chan struct{}, testProcs)
 	done := make(chan struct{}, testProcs)
 	mutex := sync.RWMutex{}
-	m := make(map[uint64]uint64, testSize)
+	m := make(map[uint64]uint64, testMapSize)
 	keys := make([]uint64, b.N)
 	values := make([]uint64, b.N)
 	for i := 0; i < b.N; i++ {
