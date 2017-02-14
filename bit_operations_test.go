@@ -1,6 +1,8 @@
-package main
+package hypermap
 
-import "testing"
+import (
+	"testing"
+)
 
 func Test_bitsToString_works(t *testing.T) {
 	m := test_create_map()
@@ -43,13 +45,16 @@ func Test_fuse_works(t *testing.T) {
 func Test_available_works(t *testing.T) {
 	m := test_create_map()
 
-	if ok := m.available(m.fuse(1, 2)); ok {
+	m.array[0] = m.fuse(1, 2)
+	m.array[1] = m.fuse(1, 2) | m.valueMask
+	m.array[2] = m.keyMask
+	if ok := m.available(0); ok {
 		t.Errorf("bucket 0 should not be available")
 	}
-	if ok := m.available(m.fuse(1, 2) | m.valueMask); !ok {
+	if ok := m.available(1); !ok {
 		t.Errorf("bucket 1 should be available")
 	}
-	if ok := m.available(m.keyMask); !ok {
+	if ok := m.available(2); !ok {
 		t.Errorf("bucket 2 should be available")
 	}
 }

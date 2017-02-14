@@ -1,4 +1,4 @@
-package main
+package hypermap
 
 import "sync/atomic"
 
@@ -16,7 +16,7 @@ func (m *Map) Set(key, value uint64) {
 		for step := uint64(0); step < m.size; step++ {
 			ptr = (bucket + step) % m.size
 			v = m.array[ptr]
-			if !m.available(v) {
+			if !m.available(ptr) {
 				continue
 			}
 			P = &m.array[ptr]
@@ -73,13 +73,13 @@ func (m *Map) grow() {
 	m.markFree()
 
 	for i := uint64(0); i < nm.size; i++ {
-		if nm.deleted(i) || nm.available(nm.array[i]) {
+		if nm.deleted(i) || nm.available(i) {
 			continue
 		}
 		bucket := m.hashy(nm.key(i)) % m.size
 		for step := uint64(0); step < m.size; step++ {
 			ptr := (bucket + step) % m.size
-			if !m.available(m.array[ptr]) {
+			if !m.available(ptr) {
 				continue
 			}
 			m.array[ptr] = nm.array[i]

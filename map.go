@@ -1,4 +1,4 @@
-package main
+package hypermap
 
 import (
 	"fmt"
@@ -8,14 +8,12 @@ import (
 // Map is awesome lockfree int->int only hashtable
 type Map struct {
 	sync.RWMutex
-
 	array              []uint64
 	seed               uintptr
 	keySize, valueSize uint64
 	keyMask, valueMask uint64
 	maxKey, maxValue   uint64
-
-	size uint64
+	size               uint64
 }
 
 // String represents Map in human readable format
@@ -50,11 +48,4 @@ func NewMap(keySize uint64, size uint64) *Map {
 	m.maxValue = m.valueMask - 1
 
 	return m
-}
-
-func main() {
-	m := NewMap(20, 256)
-	for i := uint64(0); i < 100; i++ {
-		m.Set(i, i)
-	}
 }

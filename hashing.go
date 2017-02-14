@@ -1,4 +1,4 @@
-package main
+package hypermap
 
 func (m *Map) hashy(key uint64) uint64 {
 	key = (^key) + (key << 21)

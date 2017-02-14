@@ -1,4 +1,4 @@
-package main
+package hypermap
 
 import "fmt"
 
@@ -27,8 +27,8 @@ func (m *Map) fuse(key, value uint64) uint64 {
 	return (key << m.valueSize) | value
 }
 
-func (m *Map) available(value uint64) bool {
-	if (value&m.keyMask) == m.keyMask || (value&m.valueMask) == m.valueMask {
+func (m *Map) available(bucket uint64) bool {
+	if (m.array[bucket]&m.keyMask) == m.keyMask || (m.array[bucket]&m.valueMask) == m.valueMask {
 		return true
 	}
 	return false
