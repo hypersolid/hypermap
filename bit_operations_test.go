@@ -14,26 +14,6 @@ func Test_bitsToString_works(t *testing.T) {
 	}
 }
 
-func Test_fuse_panics_on_too_big_key(t *testing.T) {
-	defer func() {
-		if r := recover(); r == nil {
-			t.Errorf("Map should panic on big key passed to fuse")
-		}
-	}()
-	m := NewMap(16, 256)
-	m.fuse(66000, 1)
-}
-
-func Test_fuse_panics_on_too_big_value(t *testing.T) {
-	defer func() {
-		if r := recover(); r == nil {
-			t.Errorf("Map should panic on big value passed to fuse")
-		}
-	}()
-	m := NewMap(63, 256)
-	m.fuse(1, 1)
-}
-
 func Test_fuse_works(t *testing.T) {
 	m := test_create_map()
 	result := m.fuse(99123, 978)

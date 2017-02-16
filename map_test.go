@@ -6,11 +6,12 @@ import (
 )
 
 const (
-	testRange = 10
+	testRange        = 10
+	testMapSmallSize = 256
 )
 
 func test_create_map() *Map {
-	return NewMap(20, 256)
+	return NewMap(20, testMapSmallSize)
 }
 
 func Test_NewMap_works(t *testing.T) {
@@ -34,7 +35,7 @@ func Test_Map_panics_on_too_short_key(t *testing.T) {
 			t.Errorf("Map should panic on short key")
 		}
 	}()
-	NewMap(15, 256)
+	NewMap(15, testMapSmallSize)
 }
 
 func Test_Map_panics_on_too_long_key(t *testing.T) {
@@ -43,7 +44,7 @@ func Test_Map_panics_on_too_long_key(t *testing.T) {
 			t.Errorf("Map should panic on long key")
 		}
 	}()
-	NewMap(64, 256)
+	NewMap(64, testMapSmallSize)
 }
 
 func Test_Set_works(t *testing.T) {
@@ -53,15 +54,27 @@ func Test_Set_works(t *testing.T) {
 	}
 }
 
-func Test_Set_over_capacity_causes_panic(t *testing.T) {
-	defer func() {
-		if r := recover(); r == nil {
-			t.Errorf("Map should panic when it's overflown")
-		}
-	}()
+func Test_Delete_works(t *testing.T) {
 	m := test_create_map()
-	for i := uint64(0); i < m.size+1; i++ {
+	for i := uint64(0); i < testRange; i++ {
 		m.Set(i, i)
+	}
+
+	m.Delete(2)
+
+	if _, ok := m.Get(2); ok {
+		t.Errorf("Key wasn't deleted")
+	}
+}
+
+func Test_Set_over_capacity_causes_grow(t *testing.T) {
+	m := test_create_map()
+
+	for i := uint64(0); i < testMapSmallSize+1; i++ {
+		m.Set(i, i)
+	}
+	if m.size <= testMapSmallSize {
+		t.Errorf("Map should grow when it's overflown")
 	}
 }
 
@@ -86,7 +99,7 @@ func Test_Grow_works(t *testing.T) {
 	for i := uint64(0); i < testRange; i++ {
 		m.Set(i, i)
 	}
-	m.grow()
+	m.grow(256)
 	for i := uint64(0); i < testRange; i++ {
 		v, ok := m.Get(i)
 		if !ok {

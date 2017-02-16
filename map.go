@@ -9,10 +9,11 @@ import (
 type Map struct {
 	sync.RWMutex
 	array              []uint64
-	seed               uintptr
-	keySize, valueSize uint64
 	keyMask, valueMask uint64
+	keySize, valueSize uint64
+	load               uint64
 	maxKey, maxValue   uint64
+	seed               uintptr
 	size               uint64
 }
 

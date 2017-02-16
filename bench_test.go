@@ -9,7 +9,7 @@ import (
 
 const (
 	testCores   = 8
-	testProcs   = 10000
+	testProcs   = 1000
 	testMapSize = 256
 )
 

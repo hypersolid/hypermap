@@ -18,12 +18,6 @@ func (m *Map) markFree() {
 }
 
 func (m *Map) fuse(key, value uint64) uint64 {
-	if key > m.maxKey {
-		panic("key too large " + bitsToString(key))
-	}
-	if value > m.maxValue {
-		panic("value too large " + bitsToString(value))
-	}
 	return (key << m.valueSize) | value
 }
 
